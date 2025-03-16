@@ -1,0 +1,23 @@
+
+sequenceDiagram
+    participant SI as SalesInvoice
+    participant EFT as EFacturaTransaction
+    participant XMLG as XMLGenerator
+    participant DS as DigitalSigner
+    participant ANAF as ANAFClient
+    participant Settings as EFacturaSettings
+    SI->>EFT: submit_to_anaf()
+    EFT->>SI: validate_anaf_compliance()
+    EFT->>XMLG: generate_ubl_21(SI)
+    XMLG-->>EFT: XML
+    EFT->>DS: sign_xml(XML)
+    DS-->>EFT: SignedXML
+    EFT->>ANAF: send_xml(SignedXML)
+    Settings->>ANAF: configure_connection()
+    ANAF-->>EFT: {status, uuid}
+    loop Retry failed
+        EFT->>ANAF: check_status(uuid)
+        ANAF-->>EFT: new_status
+    end
+    EFT->>EFT: update_status()
+    EFT->>XMLG: generate_pdf()

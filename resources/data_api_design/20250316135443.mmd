@@ -1,0 +1,45 @@
+
+classDiagram
+    class SalesInvoice {
+        +customer: str
+        +items: list[Item]
+        +taxes: list[Tax]
+        +add_einvoice_metadata()
+        +validate_anaf_compliance()
+    }
+    class EFacturaTransaction {
+        +invoice_link: str
+        +status: str
+        +xml_data: str
+        +anaf_response: dict
+        +submit_to_anaf()
+        +retry_failed()
+        +generate_pdf()
+    }
+    class XMLGenerator {
+        +template: str
+        +generate_ubl_21(invoice: SalesInvoice) str
+        +validate_with_schematron(xml: str) bool
+    }
+    class DigitalSigner {
+        +certificate: bytes
+        +private_key: bytes
+        +sign_xml(xml: str) str
+    }
+    class ANAFClient {
+        +api_url: str
+        +auth_type: str
+        +send_xml(xml: str) dict
+        +check_status(uuid: str) dict
+    }
+    class EFacturaSettings {
+        +environment: str
+        +auth_method: str
+        +certificate: SecureField
+        +configure_connection()
+    }
+    SalesInvoice --> EFacturaTransaction
+    EFacturaTransaction --> XMLGenerator
+    EFacturaTransaction --> DigitalSigner
+    EFacturaTransaction --> ANAFClient
+    ANAFClient --> EFacturaSettings

@@ -1,0 +1,134 @@
+Aplicație Frappe cu Integrare RO e-Factura
+Context General și Obiectiv
+România impune, începând cu 01.01.2025, raportarea obligatorie a facturilor B2B și B2C prin sistemul național RO e-Factura (ANAF). Facturile trebuie să fie:
+
+În format XML UBL 2.1 (conform SR EN 16931)
+Semnate electronic cu certificat digital calificat
+Transmise prin API-urile oficiale ANAF (REST)
+Validate automat de ANAF, cu feedback primit în timp real (acceptat/eroare)
+Scopul este să construim o aplicație personalizată în Frappe care să automatizeze integral procesul de e-Factura: generare, semnare, trimitere, verificare status, descărcare răspuns, conversie PDF, etc.
+
+Cerințe Principale
+Model de Date în Frappe
+
+Extindere Sales Invoice cu câmpuri necesare e-Factura:
+CIF Client și CIF Vânzător
+Coduri CPV pentru produse/servicii (dacă este cazul)
+Informații TVA (cote, excepții, scutiri)
+Status ANAF (e.g. în așteptare, ok, eroare, respins)
+Efactura Config – Doctype cu setările pentru:
+URL Test & Producție
+Metodă autentificare: certificatul digital direct sau OAuth2
+Chei, token, parametri suplimentari (ex. extern=DA, autofactura=DA etc.)
+Efactura Log (opțional) – înregistrarea comunicărilor cu ANAF (request, response, erori)
+Generare XML UBL 2.1
+
+Script Python care mapează câmpurile din Frappe (Sales Invoice) la structura semantică EN 16931.
+Validare locală cu schematron oficial (disponibil pe GitHub: ConnectingEurope/eInvoicing-EN16931).
+Posibilitate de a genera și Credit Note (valoare „CN” pentru param. standard) sau Răspuns de la cumpărător („RASP”).
+Semnătură Electronică
+
+Integrare cu OpenSSL / cryptography / PyKCS11 pentru a semna digital fișierele XML.
+Gestionarea certificatului calificat și a cheilor private (stocare securizată).
+Validare (opțional) a semnăturii:
+Endpoint dedicat ANAF: POST https://api.anaf.ro/api/validate/signature
+Autentificare la API-ul ANAF
+
+Două moduri:
+Certificat digital prezentat la conexiune (similar SPV).
+OAuth2 (ANAF poate genera token).
+Configurare în Efactura Config pentru a alege modul dorit.
+Necesită drepturi în SPV pentru CIF-ul cu care se semnează și se transmit facturile.
+Transmitere Facturi (Upload)
+
+EndPoint principal B2B:
+Test: POST https://api.anaf.ro/test/FCTEL/rest/upload?standard=UBL&cif={CIF}
+Producție: POST https://api.anaf.ro/prod/FCTEL/rest/upload?standard=UBL&cif={CIF}
+EndPoint B2C (dacă e nevoie):
+Test: POST https://api.anaf.ro/test/FCTEL/rest/uploadb2c?standard=UBL&cif={CIF}
+Producție: POST https://api.anaf.ro/prod/FCTEL/rest/uploadb2c?standard=UBL&cif={CIF}
+Parametri opționali:
+extern=DA (dacă cumpărătorul este străin, fără CUI RO)
+autofactura=DA (pentru self-billing)
+executare=DA (factură depusă de organ de executare)
+Răspuns imediat pe request (dacă XML este respins din start) sau index de încărcare (id_incarcare).
+Verificare Status Factură
+
+Endpoint:
+Test: GET https://api.anaf.ro/test/FCTEL/rest/stareMesaj?id_incarcare={val1}
+Producție: GET https://api.anaf.ro/prod/FCTEL/rest/stareMesaj?id_incarcare={val1}
+Status posibil:
+ok – factura validată, trimisă cu succes la cumpărător.
+nok – erori de validare.
+în prelucrare – încă în curs de procesare.
+Integrare Frappe:
+Scheduler/cron să verifice periodic starea facturilor încă nefinalizate.
+Descărcare Răspuns (fișier ZIP)
+
+Endpoint:
+Test: GET https://api.anaf.ro/test/FCTEL/rest/descarcare?id={val1}
+Producție: GET https://api.anaf.ro/prod/FCTEL/rest/descarcare?id={val1}
+Răspunsul conține două fișiere XML:
+Factura originală (sau fișier de erori)
+Semnătura electronică a Ministerului Finanțelor (validare finală)
+Lista Mesaje (Filtrare / Interval Timp)
+
+Pentru a obține un istoric al facturilor trimise/primate:
+Endpoint:
+Test: GET https://api.anaf.ro/test/FCTEL/rest/listaMesajeFactura?zile={1-60}&cif={CIF}
+Producție: GET https://api.anaf.ro/prod/FCTEL/rest/listaMesajeFactura?zile={1-60}&cif={CIF}
+Se pot filtra mesaje:
+E = erori factură
+T = facturi trimise
+P = facturi primite
+R = mesaje de la cumpărător
+Paginare opțională cu startTime, endTime, pagina.
+Conversie XML → PDF (Opțional)
+
+Endpoint ANAF (fără autentificare sau cu OAuth2):
+POST https://api.anaf.ro/prod/FCTEL/rest/transformare/{standard}/{novld}
+Se poate realiza și direct în Frappe, printr-un script de generare PDF local.
+Interfață Utilizator & Automatizare în Frappe
+
+Buton „Trimite la e-Factura” pe formularul Sales Invoice.
+Dashboard cu facturi, stări, erori.
+Programare automată (Frappe Scheduler) pentru:
+Upload facturi noi
+Check status facturi în așteptare
+Descărcare automată a răspunsurilor
+Notificări (email, Slack etc.) pentru facturi respinse/acceptate
+Documentație și Best Practices
+
+Exemplu cod Python (utilizând requests) pentru upload, check status, descărcare.
+Ghid instalare și configurare (certificat, chei private).
+Păstrarea securizată a certificatului calificat și a cheii private (ex. manager de certificate).
+Validarea finală a facturilor descărcate (semnătura ANAF).
+Conformitate și Testare
+
+Mediul de Test (https://api.anaf.ro/test/...) necesită certificat înregistrat în SPV.
+Asigură-te că:
+Factura XML este completă (date emitent, cumpărător, produse, TVA).
+Se respectă standardul EN 16931 (structură semantică).
+Orice eroare semnalată de ANAF este gestionată corespunzător (inclusiv logare locală).
+Integrarea OAuth2 (când devine disponibilă complet) este documentată.
+Tehnologii Recomandate
+Frappe Framework – backend și UI.
+Python – generare XML, semnătură digitală, requesturi API ANAF.
+OpenSSL / cryptography – semnare electronică.
+Schematron / lxml – validare XML locală.
+n8n / Frappe Scheduler – automatizare și job-uri periodice.
+Livrabile
+Aplicație Frappe care gestionează întreg fluxul e-Factura.
+Scripturi de generare XML UBL 2.1 și validare cu Schematron.
+Modul de Semnătură Digitală (OpenSSL sau librărie Python).
+API Binding pentru upload / stare mesaj / lista mesaje / descarcă / transformă PDF.
+UI/UX (buton & dashboard) + mecanisme de raportare erori.
+Documentație completă pentru instalare și utilizare.
+Obiectiv Final
+Soluția va elimina eforturile manuale de emitere și încărcare a facturilor, asigurând:
+
+Conformitate legală cu ANAF
+Scalabilitate (upload facturi multiple, rulări automate)
+Acces rapid la status și erori
+Integrare completă cu fluxul intern de facturare din Frappe
+Te rugăm să generezi codul sursă, configurațiile și documentația aferentă pentru a îndeplini aceste cerințe!
