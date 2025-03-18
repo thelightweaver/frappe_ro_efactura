@@ -1,0 +1,14 @@
+include *.json
+include *.md
+include *.txt
+recursive-include frappe_ro_efactura *.css
+recursive-include frappe_ro_efactura *.csv
+recursive-include frappe_ro_efactura *.html
+recursive-include frappe_ro_efactura *.ico
+recursive-include frappe_ro_efactura *.js
+recursive-include frappe_ro_efactura *.json
+recursive-include frappe_ro_efactura *.md
+recursive-include frappe_ro_efactura *.png
+recursive-include frappe_ro_efactura *.py
+recursive-include frappe_ro_efactura *.svg
+recursive-include frappe_ro_efactura *.txt
